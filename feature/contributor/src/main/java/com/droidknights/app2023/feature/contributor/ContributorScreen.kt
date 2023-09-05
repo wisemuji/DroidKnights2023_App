@@ -16,15 +16,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -44,14 +47,22 @@ import com.droidknights.app2023.core.designsystem.theme.Neon01
 import com.droidknights.app2023.core.designsystem.theme.Neon05
 import com.droidknights.app2023.core.designsystem.theme.surfaceDim
 import com.droidknights.app2023.core.model.Contributor
+import com.valentinilk.shimmer.shimmer
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun ContributorRoute(
     onBackClick: () -> Unit,
+    onShowErrorSnackBar: (throwable: Throwable?) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ContributorViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(true) {
+        viewModel.errorFlow.collectLatest { throwable -> onShowErrorSnackBar(throwable) }
+    }
 
     ContributorScreen(
         uiState = uiState,
@@ -70,19 +81,12 @@ internal fun ContributorScreen(
     Box(
         modifier = modifier.navigationBarsPadding(),
     ) {
-        when (uiState) {
-            ContributorsUiState.Loading -> ContributorList(
-                lazyListState = lazyListState,
-                contributors = emptyList(),
-            )
-            is ContributorsUiState.Contributors ->
-                ContributorList(
-                    lazyListState = lazyListState,
-                    contributors = uiState.contributors,
-                )
-        }
-        ContributorTopAppBar(lazyListState, onBackClick)
+        ContributorList(
+            uiState = uiState,
+            lazyListState = lazyListState
+        )
     }
+    ContributorTopAppBar(lazyListState, onBackClick)
 }
 
 @Composable
@@ -146,8 +150,8 @@ private fun TopBanner(darkTheme: Boolean = LocalDarkTheme.current) {
 
 @Composable
 private fun ContributorList(
+    uiState: ContributorsUiState,
     lazyListState: LazyListState,
-    contributors: List<Contributor>,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -158,12 +162,25 @@ private fun ContributorList(
         item {
             TopBanner()
         }
-        items(contributors.size) { index ->
-            val contributor = contributors[index]
-            ContributorItem(
-                contributor = contributor,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
+        when (uiState) {
+            ContributorsUiState.Loading -> {
+                items(SHIMMERING_ITEM_COUNT) {
+                    ContributorItem(
+                        contributor = null,
+                        Modifier.padding(horizontal = 8.dp)
+                    )
+                }
+            }
+
+            is ContributorsUiState.Contributors -> {
+                val contributors = uiState.contributors
+                items(contributors.size) { index ->
+                    ContributorItem(
+                        contributor = contributors[index],
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                }
+            }
         }
         item {
             Footer(modifier = Modifier.padding(bottom = 16.dp))
@@ -173,14 +190,29 @@ private fun ContributorList(
 
 @Composable
 private fun ContributorItem(
-    contributor: Contributor,
+    contributor: Contributor?,
     modifier: Modifier = Modifier,
 ) {
+    val uriHandler = LocalUriHandler.current
+    val shimmerModifier =
+        if (contributor == null) {
+            Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .shimmer()
+                .background(color = MaterialTheme.colorScheme.outline)
+        } else {
+            Modifier
+        }
     val placeholder = rememberPainterResource(
         lightId = R.drawable.ic_contributor_placeholder_lightmode,
         darkId = R.drawable.ic_contributor_placeholder_darkmode,
     )
-    KnightsCard(modifier = modifier) {
+
+    KnightsCard(
+        enabled = contributor?.githubUrl?.isNotEmpty() ?: false,
+        onClick = { uriHandler.openUri(contributor?.githubUrl ?: return@KnightsCard) },
+        modifier = modifier,
+    ) {
         Row {
             Column(
                 modifier = Modifier
@@ -196,21 +228,25 @@ private fun ContributorItem(
                     stringResource(id = R.string.contributor_chip),
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                     labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = shimmerModifier
                 )
                 Text(
-                    text = contributor.name,
+                    text = contributor?.name ?: " ".repeat(20),
                     style = KnightsTheme.typography.headlineSmallBL,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(top = 12.dp)
+                    modifier = Modifier
+                        .padding(top = 12.dp)
+                        .then(shimmerModifier)
                 )
             }
             NetworkImage(
-                imageUrl = contributor.imageUrl,
+                imageUrl = contributor?.imageUrl,
                 placeholder = placeholder,
                 modifier = Modifier
                     .padding(16.dp)
                     .size(100.dp)
                     .clip(CircleShape)
+                    .then(shimmerModifier)
             )
         }
     }
@@ -223,22 +259,35 @@ private fun Footer(modifier: Modifier = Modifier) {
     }
 }
 
+private const val SHIMMERING_ITEM_COUNT = 4
+
 @Preview
 @Composable
 private fun ContributorScreenPreview() {
     ContributorScreen(
         uiState = ContributorsUiState.Contributors(
-            listOf(
+            persistentListOf(
                 Contributor(
                     "Contributor1",
-                    "https://avatars.githubusercontent.com/u/25101514"
+                    "https://avatars.githubusercontent.com/u/25101514",
+                    "https://github.com/droidknights",
                 ),
                 Contributor(
                     "Contributor2",
-                    "https://avatars.githubusercontent.com/u/25101514"
+                    "https://avatars.githubusercontent.com/u/25101514",
+                    "https://github.com/droidknights",
                 ),
             )
         ),
+        onBackClick = {},
+    )
+}
+
+@Preview
+@Composable
+private fun ContributorScreenLoadingPreview() {
+    ContributorScreen(
+        uiState = ContributorsUiState.Loading,
         onBackClick = {},
     )
 }

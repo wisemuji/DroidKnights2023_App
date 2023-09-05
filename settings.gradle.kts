@@ -15,7 +15,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "DroidKnights 2023"
+rootProject.name = "DroidKnights2023"
 include(
     ":app",
 
@@ -26,6 +26,7 @@ include(
     ":core:model",
     ":core:ui",
     ":core:testing",
+    ":core:datastore",
 
     ":feature:main",
     ":feature:home",

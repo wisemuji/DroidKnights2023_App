@@ -2,7 +2,6 @@ package com.droidknights.app2023.feature.setting
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,7 +12,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -24,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -31,30 +33,35 @@ import androidx.compose.ui.unit.dp
 import com.droidknights.app2023.core.designsystem.component.KnightsCard
 import com.droidknights.app2023.core.designsystem.theme.KnightsTheme
 import com.droidknights.app2023.core.designsystem.theme.LocalDarkTheme
+import com.droidknights.app2023.feature.setting.opensource.OpenSourceCard
 
 @Composable
-internal fun SettingScreen(padding: PaddingValues) {
+internal fun SettingScreen(
+    padding: PaddingValues,
+    onChangeDarkTheme: (Boolean) -> Unit,
+) {
+    val scrollState = rememberScrollState()
     Column(
         Modifier
+            .verticalScroll(scrollState)
             .padding(padding)
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        LightDarkThemeCard()
+        OpenSourceCard(
+            context = LocalContext.current,
+        )
+        LightDarkThemeCard(
+            onChangeDarkTheme = onChangeDarkTheme
+        )
     }
 }
 
 @Composable
-private fun LightDarkThemeCard(darkTheme: Boolean = LocalDarkTheme.current) {
-    val changeDarkTheme: (Boolean) -> Unit = {
-        val mode = if (it) {
-            AppCompatDelegate.MODE_NIGHT_YES
-        } else {
-            AppCompatDelegate.MODE_NIGHT_NO
-        }
-        AppCompatDelegate.setDefaultNightMode(mode)
-    }
-
+private fun LightDarkThemeCard(
+    onChangeDarkTheme: (Boolean) -> Unit,
+    darkTheme: Boolean = LocalDarkTheme.current
+) {
     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onPrimaryContainer) {
         KnightsCard {
             Column {
@@ -76,14 +83,14 @@ private fun LightDarkThemeCard(darkTheme: Boolean = LocalDarkTheme.current) {
                         selected = !darkTheme,
                         titleRes = R.string.light_mode,
                         imageRes = R.drawable.img_light_mode,
-                        onClick = { changeDarkTheme(false) },
+                        onClick = { onChangeDarkTheme(false) },
                         modifier = cardModifier,
                     )
                     ThemeCard(
                         selected = darkTheme,
                         titleRes = R.string.dark_mode,
                         imageRes = R.drawable.img_dark_mode,
-                        onClick = { changeDarkTheme(true) },
+                        onClick = { onChangeDarkTheme(true) },
                         modifier = cardModifier,
                     )
                 }
@@ -136,6 +143,6 @@ private fun ThemeCard(
 @Composable
 private fun SettingScreenPreview() {
     KnightsTheme {
-        SettingScreen(PaddingValues(0.dp))
+        SettingScreen(PaddingValues(0.dp)) { }
     }
 }
